@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kenzai Release — Calendrier des sorties d'anime</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="calendrier.html" class="logo">
+        <span class="logo-mark">K</span>
+        KENZAI RELEASE
+      </a>
+      <nav class="topnav" aria-label="Navigation principale">
+        <a href="index.html">Accueil</a>
+        <a href="calendrier.html" class="active">Calendrier</a>
+        <a href="saison.html">Saison en cours</a>
+        <a href="avenir.html">À venir</a>
+      </nav>
+      <label class="adult-toggle" title="Afficher les contenus +18 (Hentai / Adult)">
+        <input type="checkbox" id="adultBox">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Afficher +18</span>
+      </label>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="side-menu" aria-label="Navigation principale">
+      <h3>Navigation</h3>
+      <a href="calendrier.html" class="active"><span class="ico">◷</span> Calendrier</a>
+      <a href="saison.html"><span class="ico">◆</span> Saison en cours</a>
+      <a href="avenir.html"><span class="ico">▶</span> À venir</a>
+      <div class="legend">Filtre +18 actif ? Les contenus Adult/Hentai sont <strong>masqués</strong> par défaut. Cochez la case dans l'en-tête pour les afficher.</div>
+    </aside>
+
+    <main class="main">
+      <h1 class="page-title">Calendrier des sorties</h1>
+      <p class="page-subtitle">Découvrez les animes diffusés chaque jour de la semaine. Cliquez sur une carte pour les détails.</p>
+
+      <div class="day-pills" id="dayPills">
+        <button class="day-pill" data-day="1">Lundi</button>
+        <button class="day-pill" data-day="2">Mardi</button>
+        <button class="day-pill" data-day="3">Mercredi</button>
+        <button class="day-pill" data-day="4">Jeudi</button>
+        <button class="day-pill" data-day="5">Vendredi</button>
+        <button class="day-pill" data-day="6">Samedi</button>
+        <button class="day-pill" data-day="0">Dimanche</button>
+      </div>
+
+      <div id="grid" class="grid"></div>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    Kenzai Release — Données via AniList · Année 2026
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+  (function(){
+    const Z = window.Kenzai;
+    const grid = document.getElementById('grid');
+    const pills = Array.from(document.querySelectorAll('.day-pill'));
+    let cache = [];
+
+    function setActive(day){
+      pills.forEach(p => {
+        p.classList.toggle('active', Number(p.dataset.day) === day);
+      });
+    }
+
+    async function loadAll(){
+      Z.showLoading(grid, 'Chargement du calendrier…');
+      try {
+        const now = new Date();
+        const season = Z.currentSeason(now);
+        const year = Z.currentYear(now);
+        const raw = await Z.fetchAllPages(Z.Q_CALENDAR, {season, year}, 50);
+        cache = raw.map(Z.norm).filter(Boolean);
+      } catch(e) {
+        console.warn('AniList fallback', e);
+        cache = Z.FALLBACK_SUMMER_2026.map((it,i) => Z.norm({
+          id:i+1, title:{romaji:it.title,english:it.title,native:it.title},
+          coverImage:{extraLarge:it.cover,large:it.cover,medium:it.cover},
+          averageScore:it.score, genres:it.genres,
+          isAdult:it.isAdult, status:it.isAdult?'ADULT':null,
+          description:'',
+          startDate:null,
+          nextAiringEpisode: it.airingAt ? {airingAt: it.airingAt, episode:1} : null
+        }));
+      }
+    }
+
+    function renderDay(day){
+      grid.innerHTML = '';
+      const filtered = Z.applyAdultFilter(cache).filter(it => {
+        if (it.airingAt) return Z.dayIndexFromAiringAt(it.airingAt) === day;
+        return false;
+      });
+      if (!filtered.length){
+        Z.showEmpty(grid, 'Aucun animé prévu ce jour.');
+        return;
+      }
+      filtered.sort((a,b) => (a.airingAt||0) - (b.airingAt||0));
+      filtered.forEach(it => grid.appendChild(Z.renderCard(it)));
+    }
+
+    async function refresh(){
+      await loadAll();
+      const activeDay = Number(document.querySelector('.day-pill.active')?.dataset.day);
+      renderDay(activeDay);
+    }
+
+    async function init(){
+      Z.bindAdultToggle();
+      const today = new Date().getDay();
+      setActive(today);
+      await refresh();
+      pills.forEach(p => p.addEventListener('click', () => {
+        const d = Number(p.dataset.day);
+        setActive(d);
+        renderDay(d);
+      }));
+      document.addEventListener('kenzai:adult-changed', () => {
+        const activeDay = Number(document.querySelector('.day-pill.active')?.dataset.day);
+        renderDay(activeDay);
+      });
+    }
+    init();
+  })();
+  </script>
+</body>
+</html>

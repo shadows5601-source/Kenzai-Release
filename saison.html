@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kenzai Release — Saison en cours</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="calendrier.html" class="logo">
+        <span class="logo-mark">K</span>
+        KENZAI RELEASE
+      </a>
+      <nav class="topnav" aria-label="Navigation principale">
+        <a href="index.html">Accueil</a>
+        <a href="calendrier.html">Calendrier</a>
+        <a href="saison.html" class="active">Saison en cours</a>
+        <a href="avenir.html">À venir</a>
+      </nav>
+      <label class="adult-toggle" title="Afficher les contenus +18 (Hentai / Adult)">
+        <input type="checkbox" id="adultBox">
+        <span class="dot" aria-hidden="true"></span>
+        <span>Afficher +18</span>
+      </label>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <aside class="side-menu" aria-label="Navigation principale">
+      <h3>Navigation</h3>
+      <a href="calendrier.html"><span class="ico">◷</span> Calendrier</a>
+      <a href="saison.html" class="active"><span class="ico">◆</span> Saison en cours</a>
+      <a href="avenir.html"><span class="ico">▶</span> À venir</a>
+      <div class="legend">Filtre +18 actif ? Les contenus Adult/Hentai sont <strong>masqués</strong> par défaut. Cochez la case dans l'en-tête pour les afficher.</div>
+    </aside>
+
+    <main class="main">
+      <h1 class="page-title" id="pageTitle">Saison en cours</h1>
+      <p class="page-subtitle" id="pageSub">Animes diffusés cette saison, séparés en nouveaux titres et suites (relation PREQUEL).</p>
+
+      <section class="section">
+        <header class="section-head">
+          <h2 class="accent-new">Nouveaux animés</h2>
+          <span class="count" id="newCount">—</span>
+        </header>
+        <div id="gridNew" class="grid"></div>
+      </section>
+
+      <section class="section">
+        <header class="section-head">
+          <h2 class="accent-cont">Suites</h2>
+          <span class="count" id="contCount">—</span>
+        </header>
+        <div id="gridCont" class="grid"></div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    Kenzai Release — Données via AniList · Année 2026
+  </footer>
+
+  <script src="app.js"></script>
+  <script>
+  (function(){
+    const Z = window.Kenzai;
+    const now = new Date();
+    const season = Z.currentSeason(now);
+    const year = Z.currentYear(now);
+
+    document.getElementById('pageTitle').textContent = Z.seasonFr(season) + ' ' + year;
+    document.getElementById('pageSub').textContent = 'Animes diffusés en ' + Z.seasonFr(season) + ' ' + year + ' — nouveaux titres et suites.';
+
+    const gridNew = document.getElementById('gridNew');
+    const gridCont = document.getElementById('gridCont');
+
+    function splitByRelation(list){
+      const fresh = [], sequels = [];
+      list.forEach(it => {
+        const rels = (it.relations || []);
+        const hasPrequel = rels.some(e => e && e.relationType === 'PREQUEL');
+        if (hasPrequel) sequels.push(it);
+        else fresh.push(it);
+      });
+      return {fresh, sequels};
+    }
+
+    function render(list, target, countEl){
+      target.innerHTML = '';
+      if (!list.length){
+        Z.showEmpty(target, 'Aucun animé dans cette catégorie.');
+        countEl.textContent = '0';
+        return;
+      }
+      countEl.textContent = list.length;
+      list.forEach(it => target.appendChild(Z.renderCard(it)));
+    }
+
+    async function load(){
+      Z.showLoading(gridNew); Z.showLoading(gridCont);
+      let list = [];
+      try {
+        const raw = await Z.fetchAllPages(Z.Q_SEASON, {season, year}, 50);
+        list = raw.map(Z.norm).filter(Boolean);
+      } catch(e) {
+        console.warn('AniList fallback', e);
+        list = Z.FALLBACK_SUMMER_2026.map((it,i) => Z.norm({
+          id:i+1, title:{romaji:it.title,english:it.title,native:it.title},
+          coverImage:{extraLarge:it.cover,large:it.cover,medium:it.cover},
+          averageScore:it.score, genres:it.genres,
+          isAdult:it.isAdult, status:it.isAdult?'ADULT':null,
+          description:it.description || '',
+          startDate:null,
+          relations: it.relations || []
+        }));
+      }
+      list = Z.applyAdultFilter(list);
+      const {fresh, sequels} = splitByRelation(list);
+      render(fresh, gridNew, document.getElementById('newCount'));
+      render(sequels, gridCont, document.getElementById('contCount'));
+    }
+
+    function refresh(){
+      load();
+    }
+
+    Z.bindAdultToggle();
+    load();
+    document.addEventListener('kenzai:adult-changed', () => refresh());
+  })();
+  </script>
+</body>
+</html>
